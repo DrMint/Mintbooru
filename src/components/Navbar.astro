@@ -1,0 +1,27 @@
+---
+const { pathname } = Astro.url;
+---
+
+<nav>
+  <a href="/" class:list={{ active: pathname === "/" }}>Home</a>
+  <a href="/upload" class:list={{ active: pathname.startsWith("/upload") }}>
+    Upload
+  </a>  
+  <a href="/duplicates" class:list={{ active: pathname.startsWith("/duplicates") }}>
+    Duplicates
+  </a>
+</nav>
+
+<style>
+  nav {
+    background-color: lightgrey;
+    display: flex;
+    align-items: center;
+    padding: 2em;
+    gap: 1.5em;
+
+    a.active {
+      color: black;
+    }
+  }
+</style>

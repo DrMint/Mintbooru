@@ -1,0 +1,24 @@
+---
+import Button from "./Button.astro";
+import Card from "./Card.astro";
+---
+
+<Card class="postGridEmpty-card">
+  <p>No post yet :&lpar;</p>
+  <Button href="/upload" title="Upload my first post" />
+</Card>
+
+<style>
+  .postGridEmpty-card {
+    place-self: center;
+    text-align: center;
+
+    display: flex;
+    flex-direction: column;
+    gap: 1em;
+  }
+
+  p {
+    margin: unset;
+  }
+</style>

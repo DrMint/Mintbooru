@@ -1,8 +1,12 @@
 ---
 import Html from "components/Html.astro";
+import PostsGrid from "components/PostsGrid.astro";
+import PostsGridEmpty from "components/PostsGridEmpty.astro";
+import { getAllPosts } from "modules/database";
+
+const posts = await getAllPosts();
 ---
 
 <Html>
-  <a href="/upload">Upload</a>
-  <a href="/posts">Posts</a>
+  {posts.length === 0 ? <PostsGridEmpty /> : <PostsGrid posts={posts} />}
 </Html>

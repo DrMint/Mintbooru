@@ -6,11 +6,20 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
+    "clean": "rm -rf ./public/uploads && rm -f db.sqlite",
+    "check": "astro check",
     "astro": "astro"
   },
   "dependencies": {
     "@astrojs/db": "^0.14.5",
     "@astrojs/node": "^9.0.1",
-    "astro": "^5.1.7"
+    "astro": "^5.1.7",
+    "sharp": "^0.33.5",
+    "sharp-phash": "^2.2.0"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.4",
+    "@types/probe-image-size": "^7.2.5",
+    "typescript": "^5.7.3"
   }
 }

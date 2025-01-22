@@ -1,0 +1,19 @@
+---
+interface Props {
+  title: string;
+  href: string;
+}
+
+const { title, href } = Astro.props;
+---
+
+<a href={href}><button>{title}</button></a>
+
+<style>
+  button {
+    padding: 1em 2em;
+    text-decoration: none;
+    color: black;
+    cursor: pointer;
+  }
+</style>

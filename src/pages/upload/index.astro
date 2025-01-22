@@ -1,28 +1,59 @@
 ---
+import Card from "components/Card.astro";
 import Html from "components/Html.astro";
 import { acceptedUploadMimes } from "modules/upload";
-import { handleUpload } from "modules/upload";
+import { handleUploads } from "modules/upload";
 
 export const prerender = false;
 
 const { request } = Astro;
 
-let uploadResult;
+let uploadResults;
 if (request.method === "POST") {
-  uploadResult = await handleUpload(request);
-  Astro.response.status = uploadResult.status;
+  uploadResults = await handleUploads(request);
+  // Astro.response.status = uploadResult.status;
 }
 ---
 
 <Html>
-  <form action="/upload" method="post" enctype="multipart/form-data">
-    <input
-      type="file"
-      name="file"
-      accept={acceptedUploadMimes.join()}
-      required
-    />
-    <input type="submit" value="Upload" />
-  </form>
-  {uploadResult && <p>{uploadResult.message}</p>}
+  <Card class="upload-card">
+    <form action="/upload" method="post" enctype="multipart/form-data">
+      <input
+        type="file"
+        name="file"
+        accept={acceptedUploadMimes.join()}
+        required
+        multiple
+      />
+      <input type="submit" value="Upload" />
+      {
+        uploadResults?.map(({ message, id, status, filename }) => (
+          <div class:list={{ error: status >= 400 }}>
+            {filename && <h2>{filename}</h2>}
+            <p>{message}</p>
+            {id && <a href={`/posts/${id}`}>View post</a>}
+          </div>
+        ))
+      }
+    </form>
+  </Card>
 </Html>
+
+<style>
+  .upload-card {
+    place-self: center;
+  }
+
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: 1em;
+
+    text-align: center;
+
+    input[type="submit"] {
+      padding: 1em 2em;
+      cursor: pointer;
+    }
+  }
+</style>

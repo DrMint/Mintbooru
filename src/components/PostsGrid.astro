@@ -1,0 +1,53 @@
+---
+import type { Post } from "modules/database";
+
+interface Props {
+  posts: Post[];
+}
+
+const { posts } = Astro.props;
+---
+
+<div id="posts">
+  {
+    posts.map(({ filename, id }) => (
+      <a href={`/posts/${id}`}>
+        <div class="img-container">
+          <img src={`/uploads/${filename}`} />
+        </div>
+      </a>
+    ))
+  }
+</div>
+
+<style>
+  #posts {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    grid-auto-rows: 250px;
+    gap: 1em;
+    padding: 2em;
+  }
+
+  .img-container {
+    height: 100%;
+    width: 100%;
+    border: 2px solid lightgray;
+    overflow: hidden;
+
+    &:hover {
+      img {
+        scale: 1.2;
+      }
+    }
+
+    & img {
+      height: 100%;
+      width: 100%;
+
+      object-fit: contain;
+      background-color: white;
+      transition: 150ms scale;
+    }
+  }
+</style>
