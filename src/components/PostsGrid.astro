@@ -10,8 +10,8 @@ const { posts } = Astro.props;
 
 <div id="posts">
   {
-    posts.map(({ filename, id }) => (
-      <a href={`/posts/${id}`}>
+    posts.map(({ filename, postId }) => (
+      <a href={`/posts/${postId}`}>
         <div class="img-container">
           <img src={`/uploads/${filename}`} />
         </div>

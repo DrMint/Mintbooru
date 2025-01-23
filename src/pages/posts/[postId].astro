@@ -3,12 +3,12 @@ import Html from "components/Html.astro";
 import { getAllPosts, getPostById } from "modules/database";
 
 export const getStaticPaths = async () => {
-  const posts = await getAllPosts();
-  return posts.map(({ id }) => ({ params: { id } }));
+  const posts = getAllPosts();
+  return posts.map(({ postId }) => ({ params: { postId } }));
 };
 
-const { id } = Astro.params;
-const post = await getPostById(id);
+const { postId } = Astro.params;
+const post = getPostById(postId);
 ---
 
 <Html>

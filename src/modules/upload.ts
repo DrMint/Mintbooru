@@ -1,12 +1,15 @@
-import { DuplicateEntries, inArray, Posts } from "astro:db";
-import { db } from "astro:db";
 import path from "path";
 import fs from "fs/promises";
 import { existsSync } from "fs";
 import { randomUUID } from "crypto";
 import sharp, { type FormatEnum } from "sharp";
 import { phash } from "./phash";
-import { getDuplicates } from "./database";
+import {
+  createDuplicateEntry,
+  createPost,
+  getAllDuplicateEntries,
+  getDuplicates,
+} from "./database";
 
 const perceptualDistanceThreshold = 10;
 
@@ -156,27 +159,22 @@ const handleUpload = async (
     perceptualDistanceThreshold
   );
 
-  let post;
+  let postId;
   try {
-    post = (
-      await db
-        .insert(Posts)
-        .values({
-          name,
-          filename,
-          format,
-          height,
-          width,
-          isOpaque,
-          isAnimated: loop !== undefined,
-          createdOn: now,
-          updatedOn: now,
-          perceptualHash,
-        })
-        .returning({ id: Posts.id })
-    )[0];
+    postId = createPost({
+      name,
+      filename,
+      format,
+      height,
+      width,
+      isOpaque,
+      isAnimated: loop !== undefined,
+      createdOn: now,
+      updatedOn: now,
+      perceptualHash,
+    }).postId;
 
-    if (!post) throw new Error("No inserted row");
+    if (!postId) throw new Error("No inserted row");
   } catch (e) {
     console.warn("[HandleUpload] Failure to insert post in DB:", e);
     return {
@@ -186,52 +184,41 @@ const handleUpload = async (
   }
 
   if (duplicates.length > 0) {
-    await handleDuplicates(post, duplicates);
+    await handleDuplicates(postId, duplicates);
   }
 
   return {
     message: "The image was uploaded!",
     status: 200,
-    id: post.id,
+    id: postId,
     filename: file.name,
   };
 };
 
-const handleDuplicates = async (post: { id: number }, duplicates: number[]) => {
-  console.log("Handling duplicates for", post.id, duplicates);
+const handleDuplicates = async (postId: number, duplicates: number[]) => {
+  console.log("Handling duplicates for", postId, duplicates);
 
   const groups = Object.entries(
     Object.groupBy(
-      await db
-        .select()
-        .from(DuplicateEntries)
-        .where(inArray(DuplicateEntries.post, duplicates)),
-      ({ group }) => group
+      getAllDuplicateEntries().filter(({ post }) => duplicates.includes(post)),
+      ({ groupId }) => groupId
     )
-  ).map(([group, entries]) => ({
-    group,
+  ).map(([groupId, entries]) => ({
+    groupId,
     posts: entries!.map(({ post }) => post),
   }));
 
   // Add myself to all the existing duplicate groups
-  await Promise.all(
-    groups.map(({ group }) =>
-      db.insert(DuplicateEntries).values({ group, post: post.id })
-    )
-  );
+  groups.map(({ groupId }) => createDuplicateEntry({ groupId, post: postId }));
 
   const duplicatesNotInAGroup = duplicates.filter(
-    (id) => !groups.flatMap(({ posts }) => posts).includes(id)
+    (postId) => !groups.flatMap(({ posts }) => posts).includes(postId)
   );
 
   // For those not already in a duplicate group, create a new group
   if (duplicatesNotInAGroup.length > 0) {
-    duplicatesNotInAGroup.push(post.id); // Add myself to the group
-    const group = randomUUID();
-    await Promise.all(
-      duplicatesNotInAGroup.map((id) =>
-        db.insert(DuplicateEntries).values({ group, post: id })
-      )
-    );
+    duplicatesNotInAGroup.push(postId); // Add myself to the group
+    const groupId = randomUUID();
+    duplicatesNotInAGroup.map((post) => createDuplicateEntry({ groupId, post }));
   }
 };

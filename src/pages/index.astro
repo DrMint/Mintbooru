@@ -4,7 +4,7 @@ import PostsGrid from "components/PostsGrid.astro";
 import PostsGridEmpty from "components/PostsGridEmpty.astro";
 import { getAllPosts } from "modules/database";
 
-const posts = await getAllPosts();
+const posts = getAllPosts();
 ---
 
 <Html>
