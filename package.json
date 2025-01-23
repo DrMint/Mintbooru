@@ -14,6 +14,7 @@
     "@astrojs/node": "^9.0.1",
     "astro": "^5.1.7",
     "better-sqlite3": "^11.8.1",
+    "nanoid": "^5.0.9",
     "sharp": "^0.33.5",
     "sharp-phash": "^2.2.0"
   },

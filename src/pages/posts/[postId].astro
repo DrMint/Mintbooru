@@ -1,14 +1,15 @@
 ---
 import Html from "components/Html.astro";
-import { getAllPosts, getPostById } from "modules/database";
+import { data } from "modules/data";
+import { getPostImageSrc } from "modules/fs";
 
 export const getStaticPaths = async () => {
-  const posts = getAllPosts();
+  const posts = data.getPosts();
   return posts.map(({ postId }) => ({ params: { postId } }));
 };
 
 const { postId } = Astro.params;
-const post = getPostById(postId);
+const post = data.getPost(postId);
 ---
 
 <Html>
@@ -16,7 +17,7 @@ const post = getPostById(postId);
     post && (
       <>
         <div>
-          <img src={`/uploads/${post.filename}`} />
+          <img src={getPostImageSrc(post, "medium")} />
         </div>
 
         <code>

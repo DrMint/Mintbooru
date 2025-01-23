@@ -1,17 +1,17 @@
 ---
 import Html from "components/Html.astro";
 import PostsGrid from "components/PostsGrid.astro";
-import { getAllPostsGroupedByDuplicates } from "modules/database";
+import { data } from "modules/data";
 
-const groups = getAllPostsGroupedByDuplicates();
+const groups = data.getDuplicatesGroups();
 ---
 
 <Html>
   {
-    groups.map((posts, index) => (
+    groups.map((group, index) => (
       <div>
         <h2>{`Group ${index + 1}`}</h2>
-        <PostsGrid posts={posts} />
+        <PostsGrid posts={group.posts} />
       </div>
     ))
   }

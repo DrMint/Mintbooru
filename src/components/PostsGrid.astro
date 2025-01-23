@@ -1,5 +1,6 @@
 ---
-import type { Post } from "modules/database";
+import type { Post } from "modules/data";
+import { getPostImageSrc } from "modules/fs";
 
 interface Props {
   posts: Post[];
@@ -10,10 +11,10 @@ const { posts } = Astro.props;
 
 <div id="posts">
   {
-    posts.map(({ filename, postId }) => (
-      <a href={`/posts/${postId}`}>
+    posts.map((post) => (
+      <a href={`/posts/${post.postId}`}>
         <div class="img-container">
-          <img src={`/uploads/${filename}`} />
+          <img src={getPostImageSrc(post, "thumb")} />
         </div>
       </a>
     ))

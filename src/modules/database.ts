@@ -1,88 +1,90 @@
-import { hashDistance } from "./phash";
-import Database from "better-sqlite3";
-
-const db = Database("db.sqlite");
-db.pragma("journal_mode = WAL");
+import BetterSqlite3 from "better-sqlite3";
 
 enum Tables {
   Posts = "Posts",
   DuplicateEntries = "DuplicateEntries",
 }
 
-db.exec(
-  `
-    CREATE TABLE IF NOT EXISTS ${Tables.Posts} (
-      postId INTEGER NOT NULL PRIMARY KEY,
-      filename TEXT NOT NULL UNIQUE,
-      format TEXT NOT NULL,
-      createdOn TEXT NOT NULL,
-      updatedOn TEXT NOT NULL,
-      isOpaque INTEGER NOT NULL,
-      isAnimated INTEGER NOT NULL,
-      name TEXT NOT NULL,
-      width INTEGER NOT NULL,
-      height INTEGER NOT NULL,
-      perceptualHash TEXT NOT NULL
-    );
-  `
-);
+type BOOLEAN = "TRUE" | "FALSE";
+type DATE = string;
+type INTEGER = number;
+type TEXT = string;
 
-db.exec(
-  `
-    CREATE TABLE IF NOT EXISTS ${Tables.DuplicateEntries} (
-      groupId TEXT NOT NULL,
-      post INTEGER NOT NULL,
-      PRIMARY KEY (groupId, post),
-      FOREIGN KEY (post) REFERENCES ${Tables.Posts}(postId)
-    );
-  `
-);
-
-export type Post = {
-  postId: number;
-  filename: string;
-  format: string;
-  createdOn: Date;
-  updatedOn: Date;
-  isOpaque: boolean;
-  isAnimated: boolean;
-  name: string;
-  width: number;
-  height: number;
-  perceptualHash: string;
+export type DBPost = {
+  postId: TEXT;
+  format: TEXT;
+  createdOn: DATE;
+  updatedOn: DATE;
+  isOpaque: BOOLEAN;
+  isAnimated: BOOLEAN;
+  name: TEXT;
+  width: INTEGER;
+  height: INTEGER;
+  perceptualHash: TEXT;
 };
 
-export type DuplicateEntry = {
-  groupId: string;
-  post: number;
+export type DBDuplicateEntry = {
+  groupId: TEXT;
+  post: DBPost["postId"];
 };
 
-export const getAllPosts = (): Post[] =>
-  db.prepare(`SELECT * FROM ${Tables.Posts};`).all() as Post[];
+export type DBDuplicateEntryJoinedWithPost = DBDuplicateEntry & DBPost;
 
-export const getPostById = (postId: number): Post | undefined => {
-  return db
-    .prepare(`SELECT * FROM ${Tables.Posts} WHERE postId='${postId}'`)
-    .get() as Post | undefined;
-};
+export class Database {
+  private readonly db;
 
-export const createPost = ({
-  createdOn,
-  filename,
-  format,
-  height,
-  isAnimated,
-  isOpaque,
-  name,
-  perceptualHash,
-  updatedOn,
-  width,
-}: Omit<Post, "postId">): Pick<Post, "postId"> => {
-  const { lastInsertRowid } = db
-    .prepare(
+  constructor() {
+    this.db = BetterSqlite3("db.sqlite");
+    this.db.pragma("journal_mode = WAL");
+    this.seed();
+  }
+
+  private seed() {
+    this.db.exec(
       `
+        CREATE TABLE IF NOT EXISTS ${Tables.Posts} (
+          postId TEXT NOT NULL PRIMARY KEY,
+          format TEXT NOT NULL,
+          createdOn TEXT NOT NULL,
+          updatedOn TEXT NOT NULL,
+          isOpaque INTEGER NOT NULL,
+          isAnimated INTEGER NOT NULL,
+          name TEXT NOT NULL,
+          width INTEGER NOT NULL,
+          height INTEGER NOT NULL,
+          perceptualHash TEXT NOT NULL
+        );
+      `
+    );
+
+    this.db.exec(
+      `
+        CREATE TABLE IF NOT EXISTS ${Tables.DuplicateEntries} (
+          groupId TEXT NOT NULL,
+          post INTEGER NOT NULL,
+          PRIMARY KEY (groupId, post),
+          FOREIGN KEY (post) REFERENCES ${Tables.Posts}(postId)
+        );
+      `
+    );
+  }
+
+  getPosts(): DBPost[] {
+    return this.db.prepare(`SELECT * FROM ${Tables.Posts};`).all() as DBPost[];
+  }
+
+  getPostById = (postId: DBPost["postId"]): DBPost | undefined => {
+    return this.db
+      .prepare(`SELECT * FROM ${Tables.Posts} WHERE postId='${postId}'`)
+      .get() as DBPost | undefined;
+  };
+
+  insertPost(post: DBPost): void {
+    this.db
+      .prepare(
+        `
         INSERT INTO ${Tables.Posts} (
-          filename,
+          postId,
           format,
           createdOn,
           updatedOn,
@@ -95,7 +97,7 @@ export const createPost = ({
         )
         
         VALUES (
-          @filename,
+          @postId,
           @format,
           @createdOn,
           @updatedOn,
@@ -107,72 +109,43 @@ export const createPost = ({
           @perceptualHash
         );
       `
-    )
-    .run({
-      filename,
-      format,
-      createdOn: createdOn.toISOString(),
-      updatedOn: updatedOn.toISOString(),
-      isOpaque: isOpaque ? "TRUE" : "FALSE",
-      isAnimated: isAnimated ? "TRUE" : "FALSE",
-      name,
-      width,
-      height,
-      perceptualHash,
-    });
-  return { postId: lastInsertRowid as number };
-};
-
-export const getDuplicates = async (
-  perceptualHash: string,
-  perceptualDistanceThreshold: number
-) => {
-  const posts = getAllPosts();
-  return posts
-    .filter(
-      (post) =>
-        hashDistance(perceptualHash, post.perceptualHash) <=
-        perceptualDistanceThreshold
-    )
-    .map(({ postId }) => postId);
-};
-
-export const createDuplicateEntry = (entry: DuplicateEntry) => {
-  const { lastInsertRowid } = db
-    .prepare(
-      `
-      INSERT INTO ${Tables.DuplicateEntries} (
-        groupId,
-        post
       )
-      
-      VALUES (
-        @groupId,
-        @post
-      );
-    `
-    )
-    .run({ groupId: entry.groupId, post: entry.post });
-  return lastInsertRowid;
-};
+      .run(post);
+  }
 
-export const getAllDuplicateEntries = (): DuplicateEntry[] =>
-  db
-    .prepare(`SELECT * FROM ${Tables.DuplicateEntries};`)
-    .all() as DuplicateEntry[];
+  getDuplicateEntries(): DBDuplicateEntry[] {
+    return this.db
+      .prepare(`SELECT * FROM ${Tables.DuplicateEntries};`)
+      .all() as DBDuplicateEntry[];
+  }
 
-export const getAllPostsGroupedByDuplicates = (): Post[][] => {
-  const posts = db
-    .prepare(
-      `
+  getDuplicateEntriesJoinedWithPost(): DBDuplicateEntryJoinedWithPost[] {
+    return this.db
+      .prepare(
+        `
       SELECT * FROM ${Tables.DuplicateEntries}
         INNER JOIN ${Tables.Posts}
         WHERE ${Tables.DuplicateEntries}.post=${Tables.Posts}.postId;
     `
-    )
-    .all() as (Post & DuplicateEntry)[];
+      )
+      .all() as DBDuplicateEntryJoinedWithPost[];
+  }
 
-  return Object.values(Object.groupBy(posts, ({ groupId }) => groupId)).map(
-    (group) => group!.map(({ groupId, ...others }) => others)
-  );
-};
+  insertDuplicateEntry = (entry: DBDuplicateEntry): void => {
+    this.db
+      .prepare(
+        `
+        INSERT INTO ${Tables.DuplicateEntries} (
+          groupId,
+          post
+        )
+        
+        VALUES (
+          @groupId,
+          @post
+        );
+      `
+      )
+      .run(entry);
+  };
+}

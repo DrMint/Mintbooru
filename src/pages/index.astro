@@ -2,9 +2,9 @@
 import Html from "components/Html.astro";
 import PostsGrid from "components/PostsGrid.astro";
 import PostsGridEmpty from "components/PostsGridEmpty.astro";
-import { getAllPosts } from "modules/database";
+import { data } from "modules/data";
 
-const posts = getAllPosts();
+const posts = data.getPosts();
 ---
 
 <Html>
