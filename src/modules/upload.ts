@@ -1,12 +1,10 @@
-import { DuplicateEntries, inArray, Posts } from "astro:db";
-import { db } from "astro:db";
 import path from "path";
-import fs from "fs/promises";
-import { existsSync } from "fs";
-import { randomUUID } from "crypto";
 import sharp, { type FormatEnum } from "sharp";
 import { phash } from "./phash";
-import { getDuplicates } from "./database";
+import { data, type Post } from "modules/data";
+import { createFolderIfMissing } from "modules/fs";
+import { writeFile } from "fs/promises";
+import { generateId } from "modules/nanoid";
 
 const perceptualDistanceThreshold = 10;
 
@@ -27,9 +25,9 @@ const acceptedSharpFormats = [
   "webp",
 ] satisfies (keyof FormatEnum)[];
 
-type AcceptedSharpFormat = (typeof acceptedSharpFormats)[number];
+export type AcceptedSharpFormat = (typeof acceptedSharpFormats)[number];
 
-const extensionsFormats: Record<AcceptedSharpFormat, string> = {
+export const extensionsFormats: Record<AcceptedSharpFormat, string> = {
   avif: ".avif",
   gif: ".gif",
   jpg: ".jpg",
@@ -48,7 +46,7 @@ const uploadFolder = "./public/uploads";
 type UploadResult = {
   message: string;
   status: number;
-  id?: number;
+  post?: Post;
   filename?: string;
 };
 
@@ -112,9 +110,12 @@ const handleUpload = async (
   const name = path.basename(file.name, path.extname(file.name));
   const buffer = await file.arrayBuffer();
 
-  const image = sharp(buffer);
+  const image = sharp(buffer, { animated: true });
 
-  const { width, height, loop, format } = await image.metadata();
+  let { width, height, loop, delay, format } = await image.metadata();
+  if (loop !== undefined && loop > 65535) {
+    loop = 65535;
+  }
   const { isOpaque } = await image.stats();
   const perceptualHash = await phash(image);
 
@@ -133,50 +134,103 @@ const handleUpload = async (
   }
 
   const extension = extensionsFormats[format];
-  const filename = randomUUID() + extension;
-  const filePath = `./public/uploads/${filename}`;
+  const postId = generateId();
 
-  try {
-    if (!existsSync(uploadFolder)) {
-      await fs.mkdir(uploadFolder);
-    }
-    await fs.writeFile(filePath, file.stream());
-  } catch (e) {
-    console.warn("[HandleUpload] Failure to write file to disk:", e);
-    return {
-      message: "For some reason we couldn't save the image on our hand.",
-      status: 500,
-    };
-  }
+  const thumbFolder = path.join(uploadFolder, "thumb");
+  const mediumFolder = path.join(uploadFolder, "medium");
+  const originalFolder = path.join(uploadFolder, "original");
+  const openGraphFolder = path.join(uploadFolder, "openGraph");
+
+  const thumbPath = path.join(thumbFolder, postId + ".webp");
+  const mediumPath = path.join(mediumFolder, postId + ".webp");
+  const originalPath = path.join(originalFolder, postId + extension);
+  const openGraphPath = path.join(openGraphFolder, postId + ".jpg");
+
+  await createFolderIfMissing(thumbFolder);
+  await createFolderIfMissing(mediumFolder);
+  await createFolderIfMissing(originalFolder);
+  await createFolderIfMissing(openGraphFolder);
+
+  const thumb = image
+    .clone()
+    .resize({
+      width: 256,
+      height: 256,
+      fit: "inside",
+      withoutEnlargement: true,
+    })
+    .webp({
+      alphaQuality: 50,
+      quality: 50,
+      effort: 4,
+      loop,
+      delay,
+      force: true,
+    });
+  await thumb.toFile(thumbPath);
+  thumb.destroy();
+
+  const medium = image
+    .clone()
+    .resize({
+      width: 1024,
+      height: 1024,
+      fit: "inside",
+      withoutEnlargement: true,
+    })
+    .webp({
+      alphaQuality: 80,
+      quality: 80,
+      effort: 4,
+      loop,
+      delay,
+      force: true,
+    });
+  await medium.toFile(mediumPath);
+  medium.destroy();
+
+  const openGraph = image
+    .clone()
+    .resize({
+      width: 256,
+      height: 256,
+      fit: "inside",
+      withoutEnlargement: true,
+    })
+    .jpeg({
+      quality: 50,
+      progressive: true,
+      optimizeCoding: true,
+      mozjpeg: true,
+      force: true,
+    });
+  await openGraph.toFile(openGraphPath);
+  openGraph.destroy();
+  image.destroy();
+
+  await writeFile(originalPath, file.stream());
 
   // Get the duplicates before inserting the post
   // otherwise the post would always be its own duplicate.
-  const duplicates = await getDuplicates(
-    perceptualHash,
-    perceptualDistanceThreshold
-  );
+  const duplicatesIds = data
+    .getDuplicates(perceptualHash, perceptualDistanceThreshold)
+    .map(({ postId }) => postId);
 
-  let post;
   try {
-    post = (
-      await db
-        .insert(Posts)
-        .values({
-          name,
-          filename,
-          format,
-          height,
-          width,
-          isOpaque,
-          isAnimated: loop !== undefined,
-          createdOn: now,
-          updatedOn: now,
-          perceptualHash,
-        })
-        .returning({ id: Posts.id })
-    )[0];
+    data.createPost({
+      postId,
+      name,
+      format,
+      height,
+      width,
+      isOpaque,
+      isAnimated: loop !== undefined,
+      createdOn: now,
+      updatedOn: now,
+      perceptualHash,
+    });
 
-    if (!post) throw new Error("No inserted row");
+    if (!postId) throw new Error("No inserted row");
   } catch (e) {
     console.warn("[HandleUpload] Failure to insert post in DB:", e);
     return {
@@ -185,53 +239,47 @@ const handleUpload = async (
     };
   }
 
-  if (duplicates.length > 0) {
-    await handleDuplicates(post, duplicates);
+  if (duplicatesIds.length > 0) {
+    await handleDuplicates(postId, duplicatesIds);
   }
 
   return {
     message: "The image was uploaded!",
     status: 200,
-    id: post.id,
+    post: data.getPost(postId),
     filename: file.name,
   };
 };
 
-const handleDuplicates = async (post: { id: number }, duplicates: number[]) => {
-  console.log("Handling duplicates for", post.id, duplicates);
+const handleDuplicates = async (
+  postId: Post["postId"],
+  duplicatesIds: Post["postId"][]
+) => {
+  console.log("Handling duplicates for", postId, duplicatesIds);
 
-  const groups = Object.entries(
-    Object.groupBy(
-      await db
-        .select()
-        .from(DuplicateEntries)
-        .where(inArray(DuplicateEntries.post, duplicates)),
-      ({ group }) => group
-    )
-  ).map(([group, entries]) => ({
-    group,
-    posts: entries!.map(({ post }) => post),
-  }));
+  const groups = data
+    .getDuplicatesGroups()
+    .filter(({ posts }) =>
+      posts.some(({ postId }) => duplicatesIds.includes(postId))
+    );
 
   // Add myself to all the existing duplicate groups
-  await Promise.all(
-    groups.map(({ group }) =>
-      db.insert(DuplicateEntries).values({ group, post: post.id })
-    )
+  groups.map(({ groupId }) => data.declareDuplicate(groupId, postId));
+
+  const allPostsIdsInDuplicatesGroups = groups.flatMap(({ posts }) =>
+    posts.map(({ postId }) => postId)
   );
 
-  const duplicatesNotInAGroup = duplicates.filter(
-    (id) => !groups.flatMap(({ posts }) => posts).includes(id)
+  const duplicatesNotInAGroup = duplicatesIds.filter(
+    (postId) => !allPostsIdsInDuplicatesGroups.includes(postId)
   );
 
   // For those not already in a duplicate group, create a new group
   if (duplicatesNotInAGroup.length > 0) {
-    duplicatesNotInAGroup.push(post.id); // Add myself to the group
-    const group = randomUUID();
-    await Promise.all(
-      duplicatesNotInAGroup.map((id) =>
-        db.insert(DuplicateEntries).values({ group, post: id })
-      )
+    duplicatesNotInAGroup.push(postId); // Add myself to the group
+    const groupId = generateId();
+    duplicatesNotInAGroup.map((duplicate) =>
+      data.declareDuplicate(groupId, duplicate)
     );
   }
 };

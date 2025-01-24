@@ -44,12 +44,15 @@ const applyDCT = (f: number[][], size: number): number[][] => {
 };
 
 export const phash = async (image: Sharp) => {
-  const data = await image
+  const clone = image
+    .clone()
     .greyscale()
     .resize(SAMPLE_SIZE, SAMPLE_SIZE, { fit: "fill" })
     .rotate()
-    .raw()
-    .toBuffer();
+    .raw();
+
+  const data = await clone.toBuffer();
+  clone.destroy();
 
   // copy signal
   const s = new Array<Array<number>>(SAMPLE_SIZE);

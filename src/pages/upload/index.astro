@@ -1,6 +1,7 @@
 ---
 import Card from "components/Card.astro";
 import Html from "components/Html.astro";
+import { getPostImageSrc } from "modules/fs";
 import { acceptedUploadMimes } from "modules/upload";
 import { handleUploads } from "modules/upload";
 
@@ -27,11 +28,15 @@ if (request.method === "POST") {
       />
       <input type="submit" value="Upload" />
       {
-        uploadResults?.map(({ message, id, status, filename }) => (
+        uploadResults?.map(({ message, post, status, filename }) => (
           <div class:list={{ error: status >= 400 }}>
             {filename && <h2>{filename}</h2>}
             <p>{message}</p>
-            {id && <a href={`/posts/${id}`}>View post</a>}
+            {post && (
+              <a href={`/posts/${post.postId}`}>
+                <img src={getPostImageSrc(post, "thumb")} alt="" />
+              </a>
+            )}
           </div>
         ))
       }

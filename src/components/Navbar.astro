@@ -6,8 +6,11 @@ const { pathname } = Astro.url;
   <a href="/" class:list={{ active: pathname === "/" }}>Home</a>
   <a href="/upload" class:list={{ active: pathname.startsWith("/upload") }}>
     Upload
-  </a>  
-  <a href="/duplicates" class:list={{ active: pathname.startsWith("/duplicates") }}>
+  </a>
+  <a
+    href="/duplicates"
+    class:list={{ active: pathname.startsWith("/duplicates") }}
+  >
     Duplicates
   </a>
 </nav>

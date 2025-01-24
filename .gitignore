@@ -24,4 +24,4 @@ pnpm-debug.log*
 .idea/
 
 public/uploads
-*.sqlite
+db.sqlite*

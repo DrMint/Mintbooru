@@ -1,26 +1,151 @@
-import { db, eq, Posts } from "astro:db";
-import { hashDistance } from "./phash";
+import BetterSqlite3 from "better-sqlite3";
 
-export type Post = NonNullable<Awaited<ReturnType<typeof getPostById>>>;
+enum Tables {
+  Posts = "Posts",
+  DuplicateEntries = "DuplicateEntries",
+}
 
-export const getAllPosts = () => db.select().from(Posts);
+type BOOLEAN = "TRUE" | "FALSE";
+type DATE = string;
+type INTEGER = number;
+type TEXT = string;
 
-export const getPostById = async (id: number) => {
-  const result = await getAllPosts().where(eq(Posts.id, id));
-  if (result.length === 0) return null;
-  return result[0];
+export type DBPost = {
+  postId: TEXT;
+  format: TEXT;
+  createdOn: DATE;
+  updatedOn: DATE;
+  isOpaque: BOOLEAN;
+  isAnimated: BOOLEAN;
+  name: TEXT;
+  width: INTEGER;
+  height: INTEGER;
+  perceptualHash: TEXT;
 };
 
-export const getDuplicates = async (
-  perceptualHash: string,
-  perceptualDistanceThreshold: number
-) => {
-  const posts = await getAllPosts();
-  return posts
-    .filter(
-      (post) =>
-        hashDistance(perceptualHash, post.perceptualHash) <=
-        perceptualDistanceThreshold
-    )
-    .map(({ id }) => id);
+export type DBDuplicateEntry = {
+  groupId: TEXT;
+  post: DBPost["postId"];
 };
+
+export type DBDuplicateEntryJoinedWithPost = DBDuplicateEntry & DBPost;
+
+export class Database {
+  private readonly db;
+
+  constructor() {
+    this.db = BetterSqlite3("db.sqlite");
+    this.db.pragma("journal_mode = WAL");
+    this.seed();
+  }
+
+  private seed() {
+    this.db.exec(
+      `
+        CREATE TABLE IF NOT EXISTS ${Tables.Posts} (
+          postId TEXT NOT NULL PRIMARY KEY,
+          format TEXT NOT NULL,
+          createdOn TEXT NOT NULL,
+          updatedOn TEXT NOT NULL,
+          isOpaque INTEGER NOT NULL,
+          isAnimated INTEGER NOT NULL,
+          name TEXT NOT NULL,
+          width INTEGER NOT NULL,
+          height INTEGER NOT NULL,
+          perceptualHash TEXT NOT NULL
+        );
+      `
+    );
+
+    this.db.exec(
+      `
+        CREATE TABLE IF NOT EXISTS ${Tables.DuplicateEntries} (
+          groupId TEXT NOT NULL,
+          post INTEGER NOT NULL,
+          PRIMARY KEY (groupId, post),
+          FOREIGN KEY (post) REFERENCES ${Tables.Posts}(postId)
+        );
+      `
+    );
+  }
+
+  getPosts(): DBPost[] {
+    return this.db.prepare(`SELECT * FROM ${Tables.Posts};`).all() as DBPost[];
+  }
+
+  getPostById = (postId: DBPost["postId"]): DBPost | undefined => {
+    return this.db
+      .prepare(`SELECT * FROM ${Tables.Posts} WHERE postId='${postId}'`)
+      .get() as DBPost | undefined;
+  };
+
+  insertPost(post: DBPost): void {
+    this.db
+      .prepare(
+        `
+        INSERT INTO ${Tables.Posts} (
+          postId,
+          format,
+          createdOn,
+          updatedOn,
+          isOpaque,
+          isAnimated,
+          name,
+          width,
+          height,
+          perceptualHash
+        )
+        
+        VALUES (
+          @postId,
+          @format,
+          @createdOn,
+          @updatedOn,
+          @isOpaque,
+          @isAnimated,
+          @name,
+          @width,
+          @height,
+          @perceptualHash
+        );
+      `
+      )
+      .run(post);
+  }
+
+  getDuplicateEntries(): DBDuplicateEntry[] {
+    return this.db
+      .prepare(`SELECT * FROM ${Tables.DuplicateEntries};`)
+      .all() as DBDuplicateEntry[];
+  }
+
+  getDuplicateEntriesJoinedWithPost(): DBDuplicateEntryJoinedWithPost[] {
+    return this.db
+      .prepare(
+        `
+      SELECT * FROM ${Tables.DuplicateEntries}
+        INNER JOIN ${Tables.Posts}
+        WHERE ${Tables.DuplicateEntries}.post=${Tables.Posts}.postId;
+    `
+      )
+      .all() as DBDuplicateEntryJoinedWithPost[];
+  }
+
+  insertDuplicateEntry = (entry: DBDuplicateEntry): void => {
+    this.db
+      .prepare(
+        `
+        INSERT INTO ${Tables.DuplicateEntries} (
+          groupId,
+          post
+        )
+        
+        VALUES (
+          @groupId,
+          @post
+        );
+      `
+      )
+      .run(entry);
+  };
+}

@@ -1,19 +1,9 @@
 ---
-import { DuplicateEntries } from "astro:db";
-import { eq } from "astro:db";
-import { Posts } from "astro:db";
-import { db } from "astro:db";
 import Html from "components/Html.astro";
 import PostsGrid from "components/PostsGrid.astro";
+import { data } from "modules/data";
 
-const duplicateGroups = await db
-  .select()
-  .from(DuplicateEntries)
-  .innerJoin(Posts, eq(DuplicateEntries.post, Posts.id));
-
-const groups = Object.values(
-  Object.groupBy(duplicateGroups, (group) => group.DuplicateEntries.group)
-).map((group) => group!.map(({ Posts: post }) => post));
+const groups = data.getDuplicatesGroups();
 ---
 
 <Html>
@@ -21,7 +11,7 @@ const groups = Object.values(
     groups.map((group, index) => (
       <div>
         <h2>{`Group ${index + 1}`}</h2>
-        <PostsGrid posts={group} />
+        <PostsGrid posts={group.posts} />
       </div>
     ))
   }
