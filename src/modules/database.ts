@@ -1,4 +1,4 @@
-import BetterSqlite3 from "better-sqlite3";
+import { Database as BunDatabase } from "bun:sqlite";
 
 enum Tables {
   Posts = "Posts",
@@ -34,13 +34,13 @@ export class Database {
   private readonly db;
 
   constructor() {
-    this.db = BetterSqlite3("db.sqlite");
-    this.db.pragma("journal_mode = WAL");
+    this.db = new BunDatabase("db.sqlite", { create: true, strict: true });
+    this.db.run("PRAGMA journal_mode = WAL;");
     this.seed();
   }
 
   private seed() {
-    this.db.exec(
+    this.db.run(
       `
         CREATE TABLE IF NOT EXISTS ${Tables.Posts} (
           postId TEXT NOT NULL PRIMARY KEY,
@@ -57,31 +57,31 @@ export class Database {
       `
     );
 
-    this.db.exec(
+    this.db.run(
       `
         CREATE TABLE IF NOT EXISTS ${Tables.DuplicateEntries} (
           groupId TEXT NOT NULL,
           post INTEGER NOT NULL,
           PRIMARY KEY (groupId, post),
-          FOREIGN KEY (post) REFERENCES ${Tables.Posts}(postId)
+          FOREIGN KEY (post) REFERENCES ${Tables.Posts} (postId)
         );
       `
     );
   }
 
   getPosts(): DBPost[] {
-    return this.db.prepare(`SELECT * FROM ${Tables.Posts};`).all() as DBPost[];
+    return this.db.query(`SELECT * FROM ${Tables.Posts};`).all() as DBPost[];
   }
 
   getPostById = (postId: DBPost["postId"]): DBPost | undefined => {
     return this.db
-      .prepare(`SELECT * FROM ${Tables.Posts} WHERE postId='${postId}'`)
-      .get() as DBPost | undefined;
+      .query(`SELECT * FROM ${Tables.Posts} WHERE postId = ?1;`)
+      .get(postId) as DBPost | undefined;
   };
 
   insertPost(post: DBPost): void {
     this.db
-      .prepare(
+      .query(
         `
         INSERT INTO ${Tables.Posts} (
           postId,
@@ -115,17 +115,17 @@ export class Database {
 
   getDuplicateEntries(): DBDuplicateEntry[] {
     return this.db
-      .prepare(`SELECT * FROM ${Tables.DuplicateEntries};`)
+      .query(`SELECT * FROM ${Tables.DuplicateEntries};`)
       .all() as DBDuplicateEntry[];
   }
 
   getDuplicateEntriesJoinedWithPost(): DBDuplicateEntryJoinedWithPost[] {
     return this.db
-      .prepare(
+      .query(
         `
       SELECT * FROM ${Tables.DuplicateEntries}
         INNER JOIN ${Tables.Posts}
-        WHERE ${Tables.DuplicateEntries}.post=${Tables.Posts}.postId;
+        WHERE ${Tables.DuplicateEntries}.post = ${Tables.Posts}.postId;
     `
       )
       .all() as DBDuplicateEntryJoinedWithPost[];
@@ -133,7 +133,7 @@ export class Database {
 
   insertDuplicateEntry = (entry: DBDuplicateEntry): void => {
     this.db
-      .prepare(
+      .query(
         `
         INSERT INTO ${Tables.DuplicateEntries} (
           groupId,

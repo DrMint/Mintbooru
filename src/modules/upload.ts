@@ -1,9 +1,8 @@
 import path from "path";
 import sharp, { type FormatEnum } from "sharp";
-import { phash } from "./phash";
+import { phash } from "modules/phash";
 import { data, type Post } from "modules/data";
-import { createFolderIfMissing } from "modules/fs";
-import { writeFile } from "fs/promises";
+import { createFolderIfMissing, writeFile } from "modules/fs";
 import { generateId } from "modules/nanoid";
 
 const perceptualDistanceThreshold = 10;
@@ -208,7 +207,7 @@ const handleUpload = async (
   openGraph.destroy();
   image.destroy();
 
-  await writeFile(originalPath, file.stream());
+  await writeFile(originalPath, buffer);
 
   // Get the duplicates before inserting the post
   // otherwise the post would always be its own duplicate.
