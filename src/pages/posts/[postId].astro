@@ -3,16 +3,15 @@ import Html from "components/Html.astro";
 import { data } from "modules/data";
 import { getPostImageSrc } from "modules/fs";
 
-export const getStaticPaths = async () => {
-  const posts = data.getPosts();
-  return posts.map(({ postId }) => ({ params: { postId } }));
-};
-
-const { postId } = Astro.params;
+const postId = Astro.params.postId!;
 const post = data.getPost(postId);
+
+if (!post) {
+  return Astro.rewrite("/404");
+}
 ---
 
-<Html>
+<Html meta={{ thumbnail: getPostImageSrc(post, "og") }}>
   {
     post && (
       <>

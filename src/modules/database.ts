@@ -18,6 +18,7 @@ export type DBPost = {
   isOpaque: BOOLEAN;
   isAnimated: BOOLEAN;
   name: TEXT;
+  extension: TEXT;
   width: INTEGER;
   height: INTEGER;
   perceptualHash: TEXT;
@@ -34,7 +35,10 @@ export class Database {
   private readonly db;
 
   constructor() {
-    this.db = new BunDatabase("db.sqlite", { create: true, strict: true });
+    this.db = new BunDatabase("./data/db.sqlite", {
+      create: true,
+      strict: true,
+    });
     this.db.run("PRAGMA journal_mode = WAL;");
     this.seed();
   }
@@ -50,6 +54,7 @@ export class Database {
           isOpaque INTEGER NOT NULL,
           isAnimated INTEGER NOT NULL,
           name TEXT NOT NULL,
+          extension TEXT NOT NULL,
           width INTEGER NOT NULL,
           height INTEGER NOT NULL,
           perceptualHash TEXT NOT NULL
@@ -91,6 +96,7 @@ export class Database {
           isOpaque,
           isAnimated,
           name,
+          extension,
           width,
           height,
           perceptualHash
@@ -104,6 +110,7 @@ export class Database {
           @isOpaque,
           @isAnimated,
           @name,
+          @extension,
           @width,
           @height,
           @perceptualHash

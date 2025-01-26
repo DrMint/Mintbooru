@@ -2,30 +2,21 @@
 import Card from "components/Card.astro";
 import Html from "components/Html.astro";
 import { getPostImageSrc } from "modules/fs";
-import { acceptedUploadMimes } from "modules/upload";
 import { handleUploads } from "modules/upload";
-
-export const prerender = false;
 
 const { request } = Astro;
 
 let uploadResults;
 if (request.method === "POST") {
   uploadResults = await handleUploads(request);
-  // Astro.response.status = uploadResult.status;
+  uploadResults.sort((a, b) => b.status - a.status);
 }
 ---
 
 <Html>
   <Card class="upload-card">
     <form action="/upload" method="post" enctype="multipart/form-data">
-      <input
-        type="file"
-        name="file"
-        accept={acceptedUploadMimes.join()}
-        required
-        multiple
-      />
+      <input type="file" name="file" accept="image/*" required multiple />
       <input type="submit" value="Upload" />
       {
         uploadResults?.map(({ message, post, status, filename }) => (

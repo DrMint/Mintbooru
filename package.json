@@ -6,7 +6,7 @@
     "dev": "bun astro dev",
     "build": "bun astro build",
     "preview": "bun astro preview",
-    "clean": "rm -rf ./public/uploads && rm -f db.sqlite*",
+    "clean": "rm -rf ./data/assets && rm -f ./data/db.sqlite*",
     "check": "bun astro check",
     "astro": "bunx --bun astro"
   },

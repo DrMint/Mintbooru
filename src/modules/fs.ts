@@ -1,6 +1,5 @@
 import { exists, mkdir } from "node:fs/promises";
 import type { Post } from "modules/data";
-import { extensionsFormats } from "modules/upload";
 
 export const createFolderIfMissing = async (path: string) => {
   if (!(await exists(path))) {
@@ -10,15 +9,11 @@ export const createFolderIfMissing = async (path: string) => {
 
 export const getPostImageSrc = (
   post: Post,
-  format: "thumb" | "original" | "openGraph" | "medium"
+  format: "thumb" | "original" | "og" | "medium"
 ): string => {
   const extension =
-    format === "original"
-      ? extensionsFormats[post.format]
-      : format === "openGraph"
-      ? extensionsFormats["jpg"]
-      : extensionsFormats["webp"];
-  return `/uploads/${format}/${post.postId}${extension}`;
+    format === "original" ? post.extension : format === "og" ? ".jpg" : ".webp";
+  return `/api/assets/${format}/${post.postId}${extension}`;
 };
 
 export const writeFile = async (

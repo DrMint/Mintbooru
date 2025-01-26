@@ -1,5 +1,5 @@
 import path from "path";
-import sharp, { type FormatEnum } from "sharp";
+import sharp from "sharp";
 import { phash } from "modules/phash";
 import { data, type Post } from "modules/data";
 import { createFolderIfMissing, writeFile } from "modules/fs";
@@ -7,40 +7,7 @@ import { generateId } from "modules/nanoid";
 
 const perceptualDistanceThreshold = 10;
 
-export const acceptedUploadMimes = [
-  "image/avif",
-  "image/gif",
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-];
-
-const acceptedSharpFormats = [
-  "avif",
-  "gif",
-  "jpg",
-  "jpeg",
-  "png",
-  "webp",
-] satisfies (keyof FormatEnum)[];
-
-export type AcceptedSharpFormat = (typeof acceptedSharpFormats)[number];
-
-export const extensionsFormats: Record<AcceptedSharpFormat, string> = {
-  avif: ".avif",
-  gif: ".gif",
-  jpg: ".jpg",
-  jpeg: ".jpg",
-  png: ".png",
-  webp: ".webp",
-};
-
-const isFormatAcceptable = (
-  format: keyof FormatEnum
-): format is AcceptedSharpFormat =>
-  acceptedSharpFormats.includes(format as unknown as AcceptedSharpFormat);
-
-const uploadFolder = "./public/uploads";
+const uploadFolder = "./data/assets";
 
 type UploadResult = {
   message: string;
@@ -98,20 +65,36 @@ const handleUpload = async (
     };
   }
 
-  if (!acceptedUploadMimes.includes(file.type)) {
+  const now = new Date();
+  const extension = path.extname(file.name);
+  const name = path.basename(file.name);
+  const buffer = await file.arrayBuffer();
+
+  let image;
+  let meta;
+  try {
+    image = sharp(buffer, { animated: true });
+    meta = await image.metadata();
+  } catch (e) {
+    if (
+      e instanceof Error &&
+      e.message === "Input buffer contains unsupported image format"
+    ) {
+      return {
+        message: `The submitted file format is not supported.`,
+        filename: file.name,
+        status: 400,
+      };
+    }
+
     return {
-      message: "The submitted file is not one of our supported image format.",
-      status: 400,
+      message: "Something bad happened.",
+      filename: file.name,
+      status: 500,
     };
   }
 
-  const now = new Date();
-  const name = path.basename(file.name, path.extname(file.name));
-  const buffer = await file.arrayBuffer();
-
-  const image = sharp(buffer, { animated: true });
-
-  let { width, height, loop, delay, format } = await image.metadata();
+  let { width, height, loop, delay, format } = meta;
   if (loop !== undefined && loop > 65535) {
     loop = 65535;
   }
@@ -121,24 +104,17 @@ const handleUpload = async (
   if (width === undefined || height === undefined || format === undefined) {
     return {
       message: "The provided image seems corrupted.",
+      filename: file.name,
       status: 400,
     };
   }
 
-  if (!isFormatAcceptable(format)) {
-    return {
-      message: "The submitted file is not one of our supported image format.",
-      status: 400,
-    };
-  }
-
-  const extension = extensionsFormats[format];
   const postId = generateId();
 
   const thumbFolder = path.join(uploadFolder, "thumb");
   const mediumFolder = path.join(uploadFolder, "medium");
   const originalFolder = path.join(uploadFolder, "original");
-  const openGraphFolder = path.join(uploadFolder, "openGraph");
+  const openGraphFolder = path.join(uploadFolder, "og");
 
   const thumbPath = path.join(thumbFolder, postId + ".webp");
   const mediumPath = path.join(mediumFolder, postId + ".webp");
@@ -188,8 +164,7 @@ const handleUpload = async (
   await medium.toFile(mediumPath);
   medium.destroy();
 
-  const openGraph = image
-    .clone()
+  const openGraph = sharp(buffer)
     .resize({
       width: 256,
       height: 256,
@@ -219,6 +194,7 @@ const handleUpload = async (
     data.createPost({
       postId,
       name,
+      extension,
       format,
       height,
       width,
@@ -234,6 +210,7 @@ const handleUpload = async (
     console.warn("[HandleUpload] Failure to insert post in DB:", e);
     return {
       message: "For some reason we couldn't add the image to the database.",
+      filename: file.name,
       status: 500,
     };
   }

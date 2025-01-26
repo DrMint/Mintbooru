@@ -1,15 +1,15 @@
 import { Database, type DBPost } from "modules/database";
 import { hashDistance } from "modules/phash";
-import type { AcceptedSharpFormat } from "modules/upload";
 
 export type Post = {
   postId: string;
-  format: AcceptedSharpFormat;
+  format: string;
   createdOn: Date;
   updatedOn: Date;
   isOpaque: boolean;
   isAnimated: boolean;
   name: string;
+  extension: string;
   width: number;
   height: number;
   perceptualHash: string;
@@ -103,7 +103,7 @@ class Data {
       updatedOn: new Date(updatedOn),
       isAnimated: isAnimated === "TRUE",
       isOpaque: isOpaque === "TRUE",
-      format: format as AcceptedSharpFormat,
+      format,
     };
   }
 }
