@@ -1,5 +1,15 @@
 ---
-import Navbar from "./Navbar.astro";
+import Navbar from "components/Navbar.astro";
+import { WEBSITE_URL } from "astro:env/server";
+
+interface Props {
+  meta?: {
+    title?: string;
+    thumbnail?: string;
+  };
+}
+
+const { meta } = Astro.props;
 ---
 
 <!doctype html>
@@ -9,6 +19,22 @@ import Navbar from "./Navbar.astro";
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <title>Document</title>
+
+    {
+      meta?.thumbnail && (
+        <>
+          <meta name="twitter:card" content="summary_large_image" />
+          <meta name="twitter:image" content={WEBSITE_URL + meta.thumbnail} />
+
+          <meta property="og:image" content={WEBSITE_URL + meta.thumbnail} />
+          <meta
+            property="og:image:secure_url"
+            content={WEBSITE_URL + meta.thumbnail}
+          />
+          <meta property="og:image:type" content="image/jpeg" />
+        </>
+      )
+    }
   </head>
   <body>
     <Navbar />
